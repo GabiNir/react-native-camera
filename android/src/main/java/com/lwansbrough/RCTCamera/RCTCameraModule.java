@@ -216,6 +216,8 @@ public class RCTCameraModule extends ReactContextBaseJavaModule implements Media
             return new RuntimeException("CamcorderProfile not found in prepareMediaRecorder.");
         }
 
+        cm.videoBitRate = options.getInt("videoBitRate");
+        cm.audioBitRate = options.getInt("audioBitRate");
         cm.fileFormat = MediaRecorder.OutputFormat.MPEG_4;
         mMediaRecorder.setProfile(cm);
 
