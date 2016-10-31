@@ -13,11 +13,12 @@ import java.util.List;
 import java.util.Map;
 
 public class RCTCamera {
-
-    private static final RCTCamera ourInstance = new RCTCamera();
+    private static RCTCamera ourInstance;
     private final HashMap<Integer, CameraInfoWrapper> _cameraInfos;
     private final HashMap<Integer, Integer> _cameraTypeToIndex;
     private final Map<Number, Camera> _cameras;
+    private boolean _barcodeScannerEnabled = false;
+    private List<String> _barCodeTypes = null;
     private int _orientation = -1;
     private int _actualDeviceOrientation = 0;
     private int _adjustedDeviceOrientation = 0;
@@ -25,6 +26,10 @@ public class RCTCamera {
     public static RCTCamera getInstance() {
         return ourInstance;
     }
+    public static void createInstance(int deviceOrientation) {
+        ourInstance = new RCTCamera(deviceOrientation);
+    }
+
 
     public Camera acquireCameraInstance(int type) {
         if (null == _cameras.get(type) && null != _cameraTypeToIndex.get(type)) {
@@ -129,6 +134,22 @@ public class RCTCamera {
         _orientation = orientation;
         adjustPreviewLayout(RCTCameraModule.RCT_CAMERA_TYPE_FRONT);
         adjustPreviewLayout(RCTCameraModule.RCT_CAMERA_TYPE_BACK);
+    }
+
+    public boolean isBarcodeScannerEnabled() {
+      return _barcodeScannerEnabled;
+    }
+
+    public void setBarcodeScannerEnabled(boolean barcodeScannerEnabled) {
+        _barcodeScannerEnabled = barcodeScannerEnabled;
+    }
+
+    public List<String> getBarCodeTypes() {
+        return _barCodeTypes;
+    }
+
+    public void setBarCodeTypes(List<String> barCodeTypes) {
+        _barCodeTypes = barCodeTypes;
     }
 
     public int getActualDeviceOrientation() {
@@ -333,10 +354,12 @@ public class RCTCamera {
         }
     }
 
-    private RCTCamera() {
+    private RCTCamera(int deviceOrientation) {
         _cameras = new HashMap<>();
         _cameraInfos = new HashMap<>();
         _cameraTypeToIndex = new HashMap<>();
+
+        _actualDeviceOrientation = deviceOrientation;
 
         // map camera types to camera indexes and collect cameras properties
         for (int i = 0; i < Camera.getNumberOfCameras(); i++) {

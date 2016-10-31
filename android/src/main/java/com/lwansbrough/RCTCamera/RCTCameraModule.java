@@ -6,6 +6,9 @@
 package com.lwansbrough.RCTCamera;
 
 import android.content.ContentValues;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.hardware.Camera;
 import android.media.CamcorderProfile;
 import android.media.MediaActionSound;
@@ -17,18 +20,35 @@ import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.Log;
 import android.view.Surface;
-import com.facebook.react.bridge.*;
 
-import javax.annotation.Nullable;
-import java.io.*;
+import com.facebook.react.bridge.LifecycleEventListener;
+import com.facebook.react.bridge.Promise;
+import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.ReactContextBaseJavaModule;
+import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.WritableNativeMap;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
-public class RCTCameraModule extends ReactContextBaseJavaModule implements MediaRecorder.OnInfoListener {
+import javax.annotation.Nullable;
+
+public class RCTCameraModule extends ReactContextBaseJavaModule
+    implements MediaRecorder.OnInfoListener, LifecycleEventListener {
     private static final String TAG = "RCTCameraModule";
 
     public static final int RCT_CAMERA_ASPECT_FILL = 0;
@@ -59,7 +79,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule implements Media
     public static final int MEDIA_TYPE_IMAGE = 1;
     public static final int MEDIA_TYPE_VIDEO = 2;
 
-    private final ReactApplicationContext _reactContext;
+    private static ReactApplicationContext _reactContext;
     private RCTSensorOrientationChecker _sensorOrientationChecker;
 
     private MediaRecorder mMediaRecorder = new MediaRecorder();
@@ -73,6 +93,11 @@ public class RCTCameraModule extends ReactContextBaseJavaModule implements Media
         super(reactContext);
         _reactContext = reactContext;
         _sensorOrientationChecker = new RCTSensorOrientationChecker(_reactContext);
+        _reactContext.addLifecycleEventListener(this);
+    }
+
+    public static ReactApplicationContext getReactContextSingleton() {
+      return _reactContext;
     }
 
     public void onInfo(MediaRecorder mr, int what, int extra) {
@@ -393,6 +418,50 @@ public class RCTCameraModule extends ReactContextBaseJavaModule implements Media
         return byteArray;
     }
 
+    private byte[] mirrorImage(byte[] data) {
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(data);
+        Bitmap photo = BitmapFactory.decodeStream(inputStream);
+
+        Matrix m = new Matrix();
+        m.preScale(-1, 1);
+        Bitmap mirroredImage = Bitmap.createBitmap(photo, 0, 0, photo.getWidth(), photo.getHeight(), m, false);
+
+        byte[] result = null;
+
+        try {
+            result = compress(mirroredImage, 85);
+        } catch (OutOfMemoryError e) {
+            try {
+                result = compress(mirroredImage, 70);
+            } catch (OutOfMemoryError e2) {
+                e.printStackTrace();
+            }
+        }
+
+        try {
+            inputStream.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return result;
+    }
+
+    private byte[] compress(Bitmap bitmap, int quality) throws OutOfMemoryError {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream);
+
+        try {
+            return outputStream.toByteArray();
+        } finally {
+            try {
+                outputStream.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     @ReactMethod
     public void capture(final ReadableMap options, final Promise promise) {
         int orientation = options.hasKey("orientation") ? options.getInt("orientation") : RCTCamera.getInstance().getOrientation();
@@ -435,10 +504,20 @@ public class RCTCameraModule extends ReactContextBaseJavaModule implements Media
             RCTCamera.getInstance().setCaptureQuality(options.getInt("type"), options.getString("quality"));
         }
 
+        final Boolean shouldMirror = options.hasKey("mirrorImage") && options.getBoolean("mirrorImage");
+
         RCTCamera.getInstance().adjustCameraRotationToDeviceOrientation(options.getInt("type"), deviceOrientation);
         camera.takePicture(null, null, new Camera.PictureCallback() {
             @Override
             public void onPictureTaken(byte[] data, Camera camera) {
+
+                if (shouldMirror) {
+                    data = mirrorImage(data);
+                    if (data == null) {
+                        promise.reject("Error mirroring image");
+                    }
+                }
+
                 camera.stopPreview();
                 camera.startPreview();
                 WritableMap response = new WritableNativeMap();
@@ -601,5 +680,27 @@ public class RCTCameraModule extends ReactContextBaseJavaModule implements Media
 
     private void addToMediaStore(String path) {
         MediaScannerConnection.scanFile(_reactContext, new String[] { path }, null, null);
+    }
+
+
+    /**
+     * LifecycleEventListener overrides
+     */
+    @Override
+    public void onHostResume() {
+        // ... do nothing
+    }
+
+    @Override
+    public void onHostPause() {
+        // On pause, we stop any pending recording session
+        if (mRecordingPromise != null) {
+            releaseMediaRecorder();
+        }
+    }
+
+    @Override
+    public void onHostDestroy() {
+        // ... do nothing
     }
 }

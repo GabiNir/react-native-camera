@@ -10,6 +10,11 @@ A camera module for React Native.
 ![](https://i.imgur.com/5j2JdUk.gif)
 
 ## Getting started
+
+### Requirements
+1. JDK >= 1.7 (if you run on 1.6 you will get an error on "_cameras = new HashMap<>();")
+2. With iOS 10 and higher you need to add the "Privacy - Camera Usage Description" key to the info.plist of your project.
+
 ### Mostly automatic install with react-native
 1. `npm install react-native-camera@https://github.com/lwansbrough/react-native-camera.git --save`
 3. `react-native link react-native-camera`
@@ -34,9 +39,9 @@ pod 'react-native-camera', path: '../node_modules/react-native-camera'
 
 #### Android
 1. `npm install react-native-camera@https://github.com/lwansbrough/react-native-camera.git --save`
-2. Open up `android/app/src/main/java/[...]/MainActivity.java
-  - Add `import com.lwansbrough.RCTCamera.*;` to the imports at the top of the file
-  - Add `new RCTCameraPackage()` to the list returned by the `getPackages()` method
+2. Open up `android/app/src/main/java/[...]/MainApplication.java
+  - Add `import com.lwansbrough.RCTCamera.RCTCameraPackage;` to the imports at the top of the file
+  - Add `new RCTCameraPackage()` to the list returned by the `getPackages()` method. Add a comma to the previous item if there's already something there.
 
 3. Append the following lines to `android/settings.gradle`:
 
@@ -239,9 +244,9 @@ By default, `onZoomChanged` is not defined and pinch-to-zoom is disabled.
 
 If set to `true`, the device will not sleep while the camera preview is visible. This mimics the behavior of the default camera app, which keeps the device awake while open.
 
-#### `iOS` `mirrorImage`
+#### `mirrorImage`
 
-If set to `true`, the image returned will be mirrored..
+If set to `true`, the image returned will be mirrored.
 
 ## Component instance methods
 
